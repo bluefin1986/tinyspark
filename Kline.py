@@ -14,7 +14,7 @@ class Kline(object):
     lowPrice = 0
     closePrice = 0
     #成交量（累计 单位：股）
-    volumn = 0
+    volume = 0
     #成交额（单位：人民币元）
     amount = 0
     #复权状态(1：后复权， 2：前复权，3：不复权）
