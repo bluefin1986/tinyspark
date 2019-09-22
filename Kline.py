@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[7]:
+# In[9]:
 
 
 #K线父类
@@ -52,7 +52,19 @@ class WeekKline(Kline):
 class MonthKline(Kline):
     def __str__(self):
         return '(%s %s 月线收盘（%s）：%s)' %(self.code, self.name, self.date, self.closePrice)
-    
+
+#5分钟线
+class FiveMinKline(Kline):
+    def __str__(self):
+        return '(%s %s 5分钟收盘（%s）：%s)' %(self.code, self.name, self.date, self.closePrice)
+#30分钟线
+class ThirtyMinKline(Kline):
+    def __str__(self):
+        return '(%s %s 5分钟收盘（%s）：%s)' %(self.code, self.name, self.date, self.closePrice)
+#60分钟线
+class SixtyMinKline(Kline):
+    def __str__(self):
+        return '(%s %s 5分钟收盘（%s）：%s)' %(self.code, self.name, self.date, self.closePrice)
 
 
 # In[8]:
