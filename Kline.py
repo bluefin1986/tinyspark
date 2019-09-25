@@ -57,19 +57,16 @@ class MonthKline(Kline):
 class FiveMinKline(Kline):
     def __str__(self):
         return '(%s %s 5分钟收盘（%s）：%s)' %(self.code, self.name, self.date, self.closePrice)
+#15分钟线
+class FiftyMinKline(Kline):
+    def __str__(self):
+        return '(%s %s 15分钟收盘（%s）：%s)' %(self.code, self.name, self.date, self.closePrice)
 #30分钟线
 class ThirtyMinKline(Kline):
     def __str__(self):
-        return '(%s %s 5分钟收盘（%s）：%s)' %(self.code, self.name, self.date, self.closePrice)
+        return '(%s %s 30分钟收盘（%s）：%s)' %(self.code, self.name, self.date, self.closePrice)
 #60分钟线
 class SixtyMinKline(Kline):
     def __str__(self):
-        return '(%s %s 5分钟收盘（%s）：%s)' %(self.code, self.name, self.date, self.closePrice)
-
-
-# In[8]:
-
-
-dayk = Kline("sz.000001", "深发展")
-print (dayk.name)
+        return '(%s %s 60分钟收盘（%s）：%s)' %(self.code, self.name, self.date, self.closePrice)
 
