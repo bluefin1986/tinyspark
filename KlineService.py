@@ -1,21 +1,18 @@
 
 # coding: utf-8
 
-# In[2]:
+# In[1]:
 
 
 import baostock as bs
 import pandas as pd
-import pandas as pd
 import dbutil
 from datetime import datetime, date
-from Kline import DayKline,WeekKline,MonthKline
-
-RSI_OVER_BUY = 80
-RSI_OVER_SELL = 20
-RSI_MIDDLE = 50
+from Kline import DayKline,WeekKline,MonthKline,SixtyMinKline
+from IPython.core.debugger import set_trace
 
 stocks = None
+
 bsLoggedIn = False
 
 def customLogin():
@@ -84,15 +81,15 @@ def downloadPeriodStockKline(period, stockCode, startDate, endDate):
         queryFields.append("preclose")
         queryFields.append("tradestatus")
         queryFields.append("isST")
-#     set_trace()
     queryFields = ",".join(queryFields)
+    adjustFlag = "2"
 #     queryFields = "date,open,high,low,close,preclose,volume,amount,adjustflag,turn,tradestatus,pctChg,isST"
     #### 获取沪深A股历史K线数据 ####
     # 详细指标参数，参见“历史行情指标参数”章节；“分钟线”参数与“日线”参数不同。
     # 分钟线指标：date,time,code,open,high,low,close,volume,amount,adjustflag
     rs = bs.query_history_k_data_plus(stockCode, queryFields,
         start_date=str(startDate), end_date=str(endDate),
-        frequency=frequency, adjustflag="2")
+        frequency=frequency, adjustflag=adjustFlag)
     if rs.error_code != '0':
         raise RuntimeError("读" + stockCode + " 数据失败了")
     ##下载下来的数据，存数据库去
@@ -105,6 +102,8 @@ def downloadPeriodStockKline(period, stockCode, startDate, endDate):
 #
 def writeKlineToDb(period, stockCode, stockName, resultSet):
     dataList = []
+    #分钟线多了个time字段，偏移量+1
+    offset = 1 if period.endswith("m") else 0
     while (resultSet.error_code == '0') & resultSet.next():
         # 获取一条记录，将记录合并在一起
 #         data_list.append(rs.get_row_data())
@@ -127,23 +126,25 @@ def writeKlineToDb(period, stockCode, stockName, resultSet):
             kline = ThirtyMinKline(stockCode, stockName)
         elif period == "60m":
             kline = SixtyMinKline(stockCode, stockName)
+        else:
+            raise RuntimeError("还不支持这个周期：" + period)
 #         recordDate = datetime.strptime(row[0], "%Y-%m-%d")
         
-        kline.openPrice = row[1]
-        kline.highPrice = row[2]
-        kline.lowPrice = row[3]
-        kline.closePrice = row[4]
-        kline.volume = row[5]
-        kline.amount = row[6]
-        kline.adjustflag = row[7]
-        
+        kline.openPrice = row[1 + offset]
+        kline.highPrice = row[2 + offset]
+        kline.lowPrice = row[3 + offset]
+        kline.closePrice = row[4 + offset]
+        kline.volume = row[5 + offset]
+        kline.amount = row[6 + offset]
+        kline.adjustflag = row[7 + offset]
+#         set_trace()
         # 日K、月K、周K有专有属性
         if period == "day" or period == "week" or period == "month":
-            recordDate = datetime.strptime(row[0], "%Y-%m-%d")
-            kline.turn = row[8]
-            kline.changePercent = row[9]
+            recordDate = datetime.strptime(row[0 + offset], "%Y-%m-%d")
+            kline.turn = row[8 + offset]
+            kline.changePercent = row[9 + offset]
         else:
-            recordDate = datetime.strptime(row[0], "%Y-%m-%dT%H:%M:%S.000Z")
+            recordDate = datetime.strptime(row[0 + offset], "%Y%m%d%H%M%S000")
         # 日K专有属性
         if period == "day":
             kline.preClosePrice = row[10]
@@ -152,7 +153,6 @@ def writeKlineToDb(period, stockCode, stockName, resultSet):
         kline.date = recordDate
         
         dataList.append(kline.__dict__)
-
     mydb = dbutil.connectDB()
     collection = mydb[chooseKlineCollection(period)]
     if len(dataList) > 0:
@@ -198,11 +198,8 @@ def readStockKline(code, period, startDate, endDate):
     mydb = dbutil.connectDB()
     cursor = None
     periodCollection = chooseKlineCollection(period)
-  
-    if period == "day" or period == "week" or period == "month":
-        startDate = datetime.strptime(startDate + "T00:00:00.000Z", "%Y-%m-%dT%H:%M:%S.000Z")
-        endDate = datetime.strptime(endDate + "T23:59:59.000Z", "%Y-%m-%dT%H:%M:%S.000Z")
-    
+    startDate = datetime.strptime(startDate + "T00:00:00.000Z", "%Y-%m-%dT%H:%M:%S.000Z")
+    endDate = datetime.strptime(endDate + "T23:59:59.000Z", "%Y-%m-%dT%H:%M:%S.000Z")
     
     cursor = mydb[chooseKlineCollection(period)].find({"code":code,"date":{"$gte":startDate, "$lte":endDate}})
     df =  pd.DataFrame(list(cursor))
@@ -274,21 +271,25 @@ def downloadAllKlineDataOfSingleDay(date):
         downloadedCount = downloadedCount + 1
         if downloadedCount % 100 == 0 and downloadedCount > 0:
             print ("process:", downloadedCount, " of ", len(stockDict) )
-    bs.logout()
+    customLogout()
 
 def downloadAllKlineDataOfPeriod(period, startDate):
     customLogin()
-    if period.endswith("m"):
-        startDate = datetime.strptime(startDate + "T00:00:00.000Z", "%Y-%m-%dT%H:%M:%S.000Z")
-        endDate = datetime.strptime(date.today() + "T23:59:59.000Z", "%Y-%m-%dT%H:%M:%S.000Z")
-    else:
-        endDate = date.today()
+    endDate = ""
     downloadedCount = 0
     failCount = 0
+    indexCount = 0
+    
     stockDict = allStocks()
+    totalCount = len(stockDict)
     set_trace()
     for key in stockDict:
         downloadedCount = downloadedCount + 1
+        if period.endswith("m"):
+            #指数没有分钟线，跳过，把totalCount - 1
+            if key.startswith("sh.000") or  key.startswith("sz.399"):
+                indexCount = indexCount + 1
+                continue
         try:
             downloadPeriodStockKline(period, key, startDate, endDate)
         except BaseException as e:
@@ -296,6 +297,14 @@ def downloadAllKlineDataOfPeriod(period, startDate):
             print ("download " + key + " error:" + str(e))
         
         if downloadedCount % 100 == 0 and downloadedCount > 0:
-            print ("download process:", downloadedCount, " of ", len(stockDict) ," failed:", failCount)
+            print ("download process:", downloadedCount, " of ", totalCount ," failed:", failCount, " passed index:", indexCount)
     customLogout()
+
+
+# In[3]:
+
+
+# downloadAllKlineDataOfSingleDay("2019-09-27")
+readStockKline("sh.600000", "day", "2018-01-01", "2019-09-29")
+# downloadAllKlineDataOfPeriod("60m", "2018-01-01")
 
