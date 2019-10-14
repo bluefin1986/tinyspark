@@ -1,12 +1,13 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[8]:
 
 
 import baostock as bs
 import pandas as pd
 import dbutil
+from Stock import Stock
 from datetime import datetime, date
 from Kline import DayKline,WeekKline,MonthKline,SixtyMinKline
 from IPython.core.debugger import set_trace
@@ -157,6 +158,11 @@ def writeKlineToDb(period, stockCode, stockName, resultSet):
     collection = mydb[chooseKlineCollection(period)]
     if len(dataList) > 0:
         collection.insert_many(dataList)
+        if period == "day":
+            latestKlineDay = dataList[len(dataList) - 1]
+            query = {"code":latestKlineDay["code"]}
+            newvalues = { "$set": { "isST": latestKlineDay["isST"] == "1"} }
+            mydb["Stock"].update_one(query, newvalues)
     else:
         raise RuntimeError("数据为空")
 
@@ -189,6 +195,13 @@ def chooseKlineCollection(period):
         "60m" : "Kline_60m"
     }
     return periodKlineCollection.get(period)
+
+##
+# 读取所有股票K线数据
+# 
+#
+def readAllStockKline(period, startDate, endDate):
+    return readStockKline(None, period, startDate, endDate)
         
 ##
 #  从数据库读取K线数据，转DataFrame
@@ -200,19 +213,23 @@ def readStockKline(code, period, startDate, endDate):
     periodCollection = chooseKlineCollection(period)
     startDate = datetime.strptime(startDate + "T00:00:00.000Z", "%Y-%m-%dT%H:%M:%S.000Z")
     endDate = datetime.strptime(endDate + "T23:59:59.000Z", "%Y-%m-%dT%H:%M:%S.000Z")
-    
-    cursor = mydb[chooseKlineCollection(period)].find({"code":code,"date":{"$gte":startDate, "$lte":endDate}})
+    query  = {"date":{"$gte":startDate, "$lte":endDate}}
+    if code != None and len(code) > 0:
+        query["code"] = code
+    cursor = mydb[chooseKlineCollection(period)].find(query)
     df =  pd.DataFrame(list(cursor))
     return df
 
 def downloadAllStocks(tradeDate):
     customLogin()
 #     set_trace()
-    stock_rs = bs.query_all_stock(tradeDate)
+#     stock_rs = bs.query_all_stock(tradeDate)
+    stock_rs = bs.query_stock_basic()
     stock_df = stock_rs.get_data()
     dataList = []
     for index,stock in stock_df.iterrows():
-        stockObj = Stock(stock["code"], stock["code_name"],stock["tradeStatus"])
+        stockObj = Stock(stock["code"], stock["code_name"])
+        stockObj.stockType = stock["type"]
         dataList.append(stockObj.__dict__)
     mydb = dbutil.connectDB()
     mydb["Stock"].delete_many({})
@@ -274,6 +291,9 @@ def downloadAllKlineDataOfSingleDay(date):
     customLogout()
 
 def downloadAllKlineDataOfPeriod(period, startDate):
+    print("begin clear Kline period:", period)
+    clearKlineData(period, startDate)
+    print("begin download Kline period", period)
     customLogin()
     endDate = ""
     downloadedCount = 0
@@ -282,14 +302,12 @@ def downloadAllKlineDataOfPeriod(period, startDate):
     
     stockDict = allStocks()
     totalCount = len(stockDict)
-    set_trace()
-    for key in stockDict:
+    for key,stock in stockDict.items():
         downloadedCount = downloadedCount + 1
-        if period.endswith("m"):
-            #指数没有分钟线，跳过，把totalCount - 1
-            if key.startswith("sh.000") or  key.startswith("sz.399"):
-                indexCount = indexCount + 1
-                continue
+        #指数没有分钟线，跳过
+        if period.endswith("m") and stock.stockType != 1:
+            indexCount = indexCount + 1
+            continue
         try:
             downloadPeriodStockKline(period, key, startDate, endDate)
         except BaseException as e:
@@ -299,12 +317,26 @@ def downloadAllKlineDataOfPeriod(period, startDate):
         if downloadedCount % 100 == 0 and downloadedCount > 0:
             print ("download process:", downloadedCount, " of ", totalCount ," failed:", failCount, " passed index:", indexCount)
     customLogout()
+    createIndex(period)
+
+def createIndex(period):
+    mydb = dbutil.connectDB()
+    collection = mydb[chooseKlineCollection(period)]
+    collection.create_index( [("code", 1), ("date",1)])
+    
+def clearKlineData(period, startDate):
+    mydb = dbutil.connectDB()
+    collection = mydb[chooseKlineCollection(period)]
+    startDate = datetime.strptime(startDate + "T00:00:00.000Z", "%Y-%m-%dT%H:%M:%S.000Z")
+    collection.delete_many({"date":{"$gte":startDate}})
+    indexes = collection.index_information()
+    if "code_1_date_1" in indexes.keys():
+        collection.drop_index( "code_1_date_1" )
+    
 
 
-# In[3]:
+# In[10]:
 
 
-# downloadAllKlineDataOfSingleDay("2019-09-27")
-readStockKline("sh.600000", "day", "2018-01-01", "2019-09-29")
-# downloadAllKlineDataOfPeriod("60m", "2018-01-01")
+get_ipython().run_cell_magic('time', '', '# downloadAllStocks("2019-10-11")\n# downloadAllKlineDataOfSingleDay("2019-09-30")\n# readStockKline("sh.600000", "day", "2018-01-01", "2019-09-29")\n# downloadAllKlineDataOfPeriod("60m", "2018-01-01")\n# downloadAllKlineDataOfPeriod("day", "2017-01-01")\n\nreadAllStockKline("day", "2019-10-11", "2019-10-11")')
 
