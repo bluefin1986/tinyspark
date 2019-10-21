@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[8]:
+# In[2]:
 
 
 import baostock as bs
@@ -291,9 +291,9 @@ def downloadAllKlineDataOfSingleDay(date):
     customLogout()
 
 def downloadAllKlineDataOfPeriod(period, startDate):
-    print("begin clear Kline period:", period)
+    print("begin clear Kline period:", period, "since ", startDate)
     clearKlineData(period, startDate)
-    print("begin download Kline period", period)
+    print("begin download Kline period", period, "since ", startDate)
     customLogin()
     endDate = ""
     downloadedCount = 0
@@ -305,7 +305,7 @@ def downloadAllKlineDataOfPeriod(period, startDate):
     for key,stock in stockDict.items():
         downloadedCount = downloadedCount + 1
         #指数没有分钟线，跳过
-        if period.endswith("m") and stock.stockType != 1:
+        if period.endswith("m") and stock["stockType"] != "1":
             indexCount = indexCount + 1
             continue
         try:
@@ -333,10 +333,4 @@ def clearKlineData(period, startDate):
     if "code_1_date_1" in indexes.keys():
         collection.drop_index( "code_1_date_1" )
     
-
-
-# In[10]:
-
-
-get_ipython().run_cell_magic('time', '', '# downloadAllStocks("2019-10-11")\n# downloadAllKlineDataOfSingleDay("2019-09-30")\n# readStockKline("sh.600000", "day", "2018-01-01", "2019-09-29")\n# downloadAllKlineDataOfPeriod("60m", "2018-01-01")\n# downloadAllKlineDataOfPeriod("day", "2017-01-01")\n\nreadAllStockKline("day", "2019-10-11", "2019-10-11")')
 
